@@ -1,0 +1,118 @@
+plugins {
+	id 'java'
+	id 'eclipse'
+	id 'idea'
+	id 'application'
+	id 'org.springframework.boot' version '2.7.14'
+	id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+	id 'pl.allegro.tech.build.axion-release' version '1.14.4'
+}
+
+group = 'com.gunadhyasoft'
+
+currentVersion {
+	doNotTrackState("Task currentVersion does not need to track changes")
+}
+
+project.scmVersion {
+	localOnly = true
+	versionCreator('versionWithBranch')
+}
+
+project.version = scmVersion.version
+
+java {
+	sourceCompatibility = '8'
+	
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(8)
+		vendor = JvmVendorSpec.AMAZON
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+application {
+	mainClass = 'com.gunadhyasoft.cico.Main'
+	applicationName = 'TimeTango'
+}
+
+distributions {
+	main {
+		contents {
+			// copy start scripts from deafult 'bin' dir to root dir of distribution
+			from startScripts
+		}
+	}
+}
+
+startScripts {
+	doLast {
+		def windowsScriptFile = file getWindowsScript()
+		def unixScriptFile = file getUnixScript()
+
+		// Change APP_HOME to root dir in startScripts 
+		windowsScriptFile.text = windowsScriptFile.text.replace('set APP_HOME=%DIRNAME%..', 'set APP_HOME=%DIRNAME%')
+		unixScriptFile.text = unixScriptFile.text.replace('APP_HOME=$( cd "${APP_HOME:-./}.." && pwd -P ) || exit', 'APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit')
+	}
+}
+
+distZip {
+	eachFile { file ->
+		// exlude all files going in 'bin' folder in distribution
+		if (file.path.contains('bin')) {
+			file.exclude()
+		}
+	}
+}
+
+dependencies {
+
+	// Computer Visions
+	implementation 'org.openpnp:opencv:4.7.0-0'
+	implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+	implementation 'org.apache.httpcomponents:httpmime:4.5.14'
+	implementation 'com.github.oshi:oshi-core:6.4.4'
+
+	// Logging
+	implementation 'org.slf4j:slf4j-api:2.0.7'
+	implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+	implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
+	implementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.9.0'
+	implementation 'org.json:json:20230618'
+	implementation 'org.quartz-scheduler:quartz:2.3.2'
+	implementation 'com.maxmind.geoip2:geoip2:2.4.0'
+	implementation 'org.bytedeco:javacv:1.5.10'
+	implementation group: 'com.google.code.gson', name: 'gson', version: '2.7'
+	implementation 'commons-io:commons-io:2.16.1'
+}
+
+jar {
+	processResources.exclude(
+		// GeoLite2 databse files
+		'GeoLite2-City.mmdb',
+		'COPYRIGHT.txt',
+		'LICENSE.txt',
+		'README.txt'
+	)
+}
+
+tasks.register('uberJar', Jar) {
+	archiveClassifier = 'uber'
+
+	from sourceSets.main.output
+
+	dependsOn configurations.runtimeClasspath
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	from {
+		configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+	}
+	with jar
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
